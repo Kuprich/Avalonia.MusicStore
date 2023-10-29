@@ -1,5 +1,8 @@
-﻿using ReactiveUI;
+﻿using Avalonia.MusicStore.Models;
+using ReactiveUI;
+using System;
 using System.Collections.ObjectModel;
+using System.Reactive.Linq;
 
 namespace Avalonia.MusicStore.ViewModels;
 
@@ -11,12 +14,10 @@ public class MusicStoreViewModel : ViewModelBase
 
     public MusicStoreViewModel()
     {
-        SearchResults = new()
-        {
-            new AlbumViewModel(),
-            new AlbumViewModel(),
-            new AlbumViewModel()
-        };
+        this.WhenAnyValue(x => x.SearchText)
+            .Throttle(TimeSpan.FromMilliseconds(400))
+            .ObserveOn(RxApp.MainThreadScheduler)
+            .Subscribe(DoSearch!);
     }
 
     public string? SearchText
@@ -37,6 +38,24 @@ public class MusicStoreViewModel : ViewModelBase
         set => this.RaiseAndSetIfChanged(ref _selectedAlbum, value);
     }
 
-    public ObservableCollection<AlbumViewModel> SearchResults { get; }
+    public ObservableCollection<AlbumViewModel> SearchResults { get; } = new();
 
+    private async void DoSearch(string s)
+    {
+        IsBusy = true;
+        SearchResults.Clear();
+
+        if (!string.IsNullOrWhiteSpace(s))
+        {
+            var albums = await Album.SearchAsync(s);
+
+            foreach (var album in albums)
+            {
+                var vm = new AlbumViewModel(album);
+                SearchResults.Add(vm);
+            }
+        }
+
+        IsBusy = false;
+    }
 }
